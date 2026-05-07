@@ -51,3 +51,15 @@ def mark_processed(url: str, title: str, filename: str):
         )
         conn.commit()
         conn.close()
+
+
+def get_url_by_filename(filename: str) -> str | None:
+    """Retrieve the original URL for a given filename."""
+    with _lock:
+        conn = _get_conn()
+        row = conn.execute(
+            "SELECT url FROM processed WHERE filename = ?",
+            (filename,),
+        ).fetchone()
+        conn.close()
+    return row[0] if row else None

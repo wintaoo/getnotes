@@ -675,6 +675,33 @@ textarea:focus { border-color: var(--border-focus); }
   color: #fff;
 }
 
+.note-list .btn-regen {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note-list li:hover .btn-regen {
+  opacity: 1;
+}
+
+.note-list .btn-regen:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
 .note-list .note-title {
   font-weight: 500;
   overflow: hidden;

@@ -9,7 +9,7 @@ from flask import Flask, render_template, request, jsonify
 from src.config import NOTES_DIR, DEEPSEEK_CONCURRENCY, DEEPSEEK_MODEL, AVAILABLE_MODELS
 from src.fetcher import fetch_content
 from src.generator import generate_notes_batch
-from src.dedup import is_processed, mark_processed
+from src.dedup import is_processed, mark_processed, get_url_by_filename
 from main import sanitize_filename
 
 app = Flask(__name__)
@@ -120,6 +120,41 @@ def api_generate():
     # Restore original order
     results.sort(key=lambda r: urls.index(r["url"]))
     return jsonify({"results": results})
+
+
+@app.route("/api/regenerate/<path:filename>", methods=["POST"])
+def api_regenerate(filename):
+    url = get_url_by_filename(filename)
+    if not url:
+        return jsonify({"error": "未找到该笔记的原始 URL"}), 404
+
+    data = request.get_json() or {}
+    model = data.get("model", DEEPSEEK_MODEL)
+    if model not in AVAILABLE_MODELS:
+        model = DEEPSEEK_MODEL
+
+    try:
+        title, content = fetch_content(url)
+        notes = generate_notes_batch(
+            [{"content": content, "title": title, "url": url}],
+            model=model,
+        )
+        gen = notes[0]
+        if gen["error"]:
+            return jsonify({"error": gen["error"]}), 500
+
+        filepath = os.path.join(NOTES_DIR, filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(gen["content"])
+
+        return jsonify({
+            "filename": filename,
+            "title": title,
+            "content": gen["content"],
+            "url": url,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/notes", methods=["GET"])
