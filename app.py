@@ -88,7 +88,7 @@ def api_generate():
 
     # Step 2: Concurrent generate via batch API
     if gen_tasks:
-        batch_input = [{"content": t["content"], "title": t["title"]} for t in gen_tasks]
+        batch_input = [{"content": t["content"], "title": t["title"], "url": t["url"]} for t in gen_tasks]
         gen_results = generate_notes_batch(batch_input, model=model)
 
         for task, gen in zip(gen_tasks, gen_results):

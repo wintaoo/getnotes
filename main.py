@@ -90,7 +90,7 @@ def main():
     for url in new_urls:
         title, content = fetch_results[url]
         if content:
-            gen_tasks.append({"content": content, "title": title})
+            gen_tasks.append({"content": content, "title": title, "url": url})
             gen_urls.append(url)
 
     if gen_tasks:

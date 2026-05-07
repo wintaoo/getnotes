@@ -125,7 +125,7 @@ def _get_client(exclude: set = None) -> tuple:
         return client, real_idx
 
 
-def generate_notes(content: str, title: str = "", model: str = None, max_retries: int = 2) -> str:
+def generate_notes(content: str, title: str = "", model: str = None, max_retries: int = 2, url: str = "") -> str:
     if model is None:
         model = DEEPSEEK_MODEL
 
@@ -152,7 +152,10 @@ def generate_notes(content: str, title: str = "", model: str = None, max_retries
                 kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
 
             response = client.chat.completions.create(**kwargs)
-            return response.choices[0].message.content
+            result = response.choices[0].message.content
+            if url:
+                result += f"\n\n---\n原文链接：{url}"
+            return result
         except Exception as e:
             last_error = e
             if attempt < max_retries:
@@ -180,7 +183,8 @@ def generate_notes_batch(tasks: list[dict], model: str = None) -> list[dict]:
         try:
             content = task["content"]
             title = task.get("title", "")
-            notes = generate_notes(content, title, model=model)
+            url = task.get("url", "")
+            notes = generate_notes(content, title, model=model, url=url)
             return idx, {"title": title, "content": notes, "error": None}
         except Exception as e:
             return idx, {"title": task.get("title", ""), "content": "", "error": str(e)}
