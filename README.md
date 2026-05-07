@@ -8,7 +8,12 @@
 
 - **智能笔记生成** — 自动提炼技术要点、架构设计、面试讲述框架
 - **面经模式** — 自动识别面经文章，逐题整理为面试题+回答
+- **URL 去重** — SQLite 缓存已处理 URL，避免重复消耗 API 额度
+- **失败重试** — 自动切换 Key 重试（最多 2 次），指数退避
+- **模型切换** — 支持 V4 Pro / V4 Flash / V3 / R1，CLI 和 Web 均可切换
 - **多 Key 并发** — 支持多个 API Key 轮询路由，并发生成，提速 3-6 倍
+- **黑白主题** — 暗色/亮色一键切换，偏好持久化
+- **历史管理** — 侧边栏预览、搜索、删除、重新生成
 - **三层反反爬** — requests → 微信 UA 伪装 → Selenium headless Chrome 自动降级
 - **Web UI + CLI** — 浏览器操作或命令行批处理，二选一
 
@@ -57,9 +62,11 @@ python main.py -l "url1,url2,url3"
 # 从文件批量处理
 python main.py -f urls.txt
 
-# 自定义并发数
-python main.py -f urls.txt -c 6
+# 指定模型和并发数
+python main.py -f urls.txt -m deepseek-chat -c 6
 ```
+  
+可选模型：`deepseek-v4-pro`（默认）、`deepseek-v4-flash`、`deepseek-chat`（V3）、`deepseek-reasoner`（R1）
 
 ## 笔记输出结构
 
@@ -87,11 +94,12 @@ getnotes/
 ├── src/
 │   ├── config.py         # 配置管理
 │   ├── fetcher.py        # URL 抓取（三层反反爬）
-│   └── generator.py      # DeepSeek API 并发生成
+│   ├── generator.py      # DeepSeek API 并发生成
+│   └── dedup.py          # URL 去重缓存（SQLite）
 ├── templates/
 │   └── index.html        # Web 前端
 ├── static/
-│   └── style.css         # 样式
+│   └── style.css         # 样式（暗色/亮色主题）
 └── notes/                # 笔记输出目录
 ```
 
