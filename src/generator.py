@@ -123,7 +123,7 @@ from langchain.embeddings import OpenAIEmbeddings
 ## 通用输出要求
 - 中文为主，技术术语首次出现保留英文原名（如 "Retrieval-Augmented Generation (RAG)"）
 - **笔记要全面**：读者应能靠这份笔记复习，而不是看完还需要回去翻原文
-- 原文中的具体数据、代码片段、配置示例、对比表格必须保留
+- 原文中有价值的具体数据、代码片段、配置示例应保留
 - 面向面试表达场景组织内容，但不能为此牺牲信息的完整度
 - 使用 Markdown 格式，适当使用表格、代码块、mermaid 流程图
 
