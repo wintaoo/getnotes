@@ -3,8 +3,10 @@ venv/
 .venv/
 env/
 
-# Environment files
+# Environment & sensitive files
 .env
+api.txt
+SDD.txt
 
 # Python
 __pycache__/
