@@ -12,7 +12,16 @@ else:
     DEEPSEEK_API_KEYS = [single] if single else []
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_MODEL = "deepseek-v4-pro"
+
+AVAILABLE_MODELS = {
+    "deepseek-v4-pro": "DeepSeek V4 Pro (推荐)",
+    "deepseek-chat": "DeepSeek V3",
+    "deepseek-reasoner": "DeepSeek R1",
+}
+
+DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro")
+if DEEPSEEK_MODEL not in AVAILABLE_MODELS:
+    DEEPSEEK_MODEL = "deepseek-v4-pro"
 
 NOTES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "notes")
 

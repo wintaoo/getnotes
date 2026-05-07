@@ -33,7 +33,14 @@
     <main class="content-area">
       <!-- Input Card -->
       <div class="card" id="inputCard">
-        <h2>输入 URL</h2>
+        <div class="input-header">
+          <h2>输入 URL</h2>
+          <select id="modelSelect" class="model-select">
+            <option value="deepseek-v4-pro">DeepSeek V4 Pro</option>
+            <option value="deepseek-chat">DeepSeek V3</option>
+            <option value="deepseek-reasoner">DeepSeek R1</option>
+          </select>
+        </div>
 
         <!-- Tabs -->
         <div class="input-tabs">
@@ -249,11 +256,12 @@ async function generate(urls) {
   const startTime = Date.now();
   currentResults = [];
 
+  const model = document.getElementById('modelSelect').value;
   try {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls })
+      body: JSON.stringify({ urls, model })
     });
     const data = await res.json();
     if (data.results) {

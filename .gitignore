@@ -29,7 +29,7 @@ build/
 Thumbs.db
 
 # Output
-notes/*.md
+notes/
 
 # Selenium
 chromedriver

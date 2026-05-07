@@ -1,4 +1,5 @@
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
@@ -112,33 +113,55 @@ _client_lock = threading.Lock()
 _client_index = 0
 
 
-def _get_client() -> OpenAI:
+def _get_client(exclude: set = None) -> tuple:
     global _client_index
     with _client_lock:
-        client = _clients[_client_index % len(_clients)]
+        available = [(i, c) for i, c in enumerate(_clients) if exclude is None or i not in exclude]
+        if not available:
+            return _clients[0], 0
+        idx = _client_index % len(available)
+        real_idx, client = available[idx]
         _client_index += 1
-        return client
+        return client, real_idx
 
 
-def generate_notes(content: str, title: str = "") -> str:
+def generate_notes(content: str, title: str = "", model: str = None, max_retries: int = 2) -> str:
+    if model is None:
+        model = DEEPSEEK_MODEL
+
     user_message = f"标题：{title}\n\n文章内容：\n{content}" if title else f"文章内容：\n{content}"
 
-    client = _get_client()
-    response = client.chat.completions.create(
-        model=DEEPSEEK_MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
-        ],
-        stream=False,
-        reasoning_effort="high",
-        extra_body={"thinking": {"type": "enabled"}},
-    )
+    last_error = None
+    tried_key_indices = set()
 
-    return response.choices[0].message.content
+    for attempt in range(max_retries + 1):
+        client, key_idx = _get_client(exclude=tried_key_indices)
+        tried_key_indices.add(key_idx)
+
+        try:
+            kwargs = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+                "stream": False,
+            }
+            if model == "deepseek-v4-pro":
+                kwargs["reasoning_effort"] = "high"
+                kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+
+            response = client.chat.completions.create(**kwargs)
+            return response.choices[0].message.content
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries:
+                time.sleep(attempt + 1)
+
+    raise last_error
 
 
-def generate_notes_batch(tasks: list[dict]) -> list[dict]:
+def generate_notes_batch(tasks: list[dict], model: str = None) -> list[dict]:
     """
     Concurrently generate notes for multiple (content, title) tasks.
     Each task: {"content": str, "title": str}
@@ -147,6 +170,9 @@ def generate_notes_batch(tasks: list[dict]) -> list[dict]:
     if not tasks:
         return []
 
+    if model is None:
+        model = DEEPSEEK_MODEL
+
     max_workers = min(len(tasks), DEEPSEEK_CONCURRENCY)
     results = [None] * len(tasks)
 
@@ -154,7 +180,7 @@ def generate_notes_batch(tasks: list[dict]) -> list[dict]:
         try:
             content = task["content"]
             title = task.get("title", "")
-            notes = generate_notes(content, title)
+            notes = generate_notes(content, title, model=model)
             return idx, {"title": title, "content": notes, "error": None}
         except Exception as e:
             return idx, {"title": task.get("title", ""), "content": "", "error": str(e)}

@@ -4,33 +4,15 @@ import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from src.config import NOTES_DIR, DEEPSEEK_CONCURRENCY, DEEPSEEK_API_KEYS
+from src.config import NOTES_DIR, DEEPSEEK_CONCURRENCY, DEEPSEEK_API_KEYS, DEEPSEEK_MODEL, AVAILABLE_MODELS
 from src.fetcher import fetch_content
 from src.generator import generate_notes_batch
+from src.dedup import is_processed, mark_processed
 
 
 def sanitize_filename(title: str) -> str:
     name = re.sub(r'[\\/:*?"<>|]', "_", title)
     return name.strip()[:80]
-
-
-def process_url(url: str, output_dir: str) -> str:
-    print(f"  抓取: {url}")
-    title, content = fetch_content(url)
-    print(f"  标题: {title} ({len(content)} 字符)")
-
-    notes = generate_notes_batch([{"content": content, "title": title}])[0]
-    if notes["error"]:
-        raise RuntimeError(notes["error"])
-
-    filename = sanitize_filename(title) + ".md"
-    os.makedirs(output_dir, exist_ok=True)
-    filepath = os.path.join(output_dir, filename)
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(notes["content"])
-
-    print(f"  已保存: {filepath}")
-    return filepath
 
 
 def parse_urls(args) -> list[str]:
@@ -60,16 +42,33 @@ def main():
     parser.add_argument("-o", "--output", default=NOTES_DIR, help="笔记输出目录 (默认: ./notes)")
     parser.add_argument("-c", "--concurrency", type=int, default=default_concurrency,
                         help=f"并发数 (默认: {default_concurrency})")
+    parser.add_argument("-m", "--model", default=DEEPSEEK_MODEL,
+                        choices=list(AVAILABLE_MODELS.keys()),
+                        help=f"模型选择 (默认: {DEEPSEEK_MODEL})")
     args = parser.parse_args()
 
     urls = parse_urls(args)
-    print(f"共 {len(urls)} 个 URL，并发度 {args.concurrency}\n")
+    model_name = AVAILABLE_MODELS.get(args.model, args.model)
+    print(f"共 {len(urls)} 个 URL, 模型: {model_name}, 并发度 {args.concurrency}\n")
+
+    # Dedup check
+    new_urls = []
+    for url in urls:
+        existing = is_processed(url)
+        if existing:
+            print(f"  [SKIP] 已存在: {url} -> {existing}")
+        else:
+            new_urls.append(url)
+
+    if not new_urls:
+        print("\n所有 URL 均已处理过。")
+        return
 
     # Step 1: Concurrent fetch
-    print("--- 抓取内容 ---")
+    print(f"\n--- 抓取内容 ({len(new_urls)} 个) ---")
     fetch_tasks = {}
-    with ThreadPoolExecutor(max_workers=min(len(urls), args.concurrency)) as executor:
-        for url in urls:
+    with ThreadPoolExecutor(max_workers=min(len(new_urls), args.concurrency)) as executor:
+        for url in new_urls:
             future = executor.submit(fetch_content, url)
             fetch_tasks[future] = url
 
@@ -85,17 +84,17 @@ def main():
                 print(f"  [FAIL] {url} -> {e}")
 
     # Step 2: Concurrent generate
-    print("\n--- 生成笔记 ---")
+    print(f"\n--- 生成笔记 ({args.model}) ---")
     gen_tasks = []
     gen_urls = []
-    for url in urls:
+    for url in new_urls:
         title, content = fetch_results[url]
         if content:
             gen_tasks.append({"content": content, "title": title})
             gen_urls.append(url)
 
     if gen_tasks:
-        gen_results = generate_notes_batch(gen_tasks)
+        gen_results = generate_notes_batch(gen_tasks, model=args.model)
         for url, result in zip(gen_urls, gen_results):
             if result["error"]:
                 print(f"  [FAIL] {url} -> {result['error']}")
@@ -106,6 +105,7 @@ def main():
             filepath = os.path.join(args.output, filename)
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(result["content"])
+            mark_processed(url, title, filename)
             print(f"  [OK] {url} -> {filepath}")
 
     print(f"\n完成!")
