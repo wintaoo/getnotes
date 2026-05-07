@@ -148,14 +148,35 @@ function renderHistory(notes) {
     return;
   }
   list.innerHTML = notes.map(n => `
-    <li onclick="loadNote('${escapeAttr(n.filename)}')" data-file="${escapeAttr(n.filename)}">
-      <div class="note-title">${escapeHtml(n.filename.replace('.md', ''))}</div>
-      <div class="note-meta">
-        <span>${formatDate(n.mtime)}</span>
-        <span>${formatSize(n.size)}</span>
+    <li data-file="${escapeAttr(n.filename)}">
+      <div class="note-info" onclick="loadNote('${escapeAttr(n.filename)}')">
+        <div class="note-title">${escapeHtml(n.filename.replace('.md', ''))}</div>
+        <div class="note-meta">
+          <span>${formatDate(n.mtime)}</span>
+          <span>${formatSize(n.size)}</span>
+        </div>
       </div>
+      <button class="btn-delete" onclick="deleteNote(event, '${escapeAttr(n.filename)}')" title="删除">×</button>
     </li>
   `).join('');
+}
+
+async function deleteNote(event, filename) {
+  event.stopPropagation();
+  if (!confirm(`确定删除「${filename.replace('.md', '')}」?`)) return;
+  try {
+    const res = await fetch(`/api/notes/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    if (res.ok) {
+      showToast('已删除');
+      loadHistory();
+      const area = document.getElementById('previewArea');
+      if (area.classList.contains('active') && currentResults[currentIndex]?.filename === filename) {
+        area.classList.remove('active');
+      }
+    }
+  } catch(e) {
+    showToast('删除失败');
+  }
 }
 
 function filterNotes() {

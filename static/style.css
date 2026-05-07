@@ -557,13 +557,16 @@ textarea:focus { border-color: var(--border-focus); }
 }
 
 .note-list li {
-  padding: 10px 12px;
+  padding: 6px 8px 6px 12px;
   border-radius: 8px;
-  cursor: pointer;
   transition: all 0.15s;
   font-size: 13px;
   border: 1px solid transparent;
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 .note-list li:hover {
@@ -573,6 +576,39 @@ textarea:focus { border-color: var(--border-focus); }
 .note-list li.active {
   background: var(--accent-dim);
   border-color: var(--accent);
+}
+
+.note-list .note-info {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.note-list .btn-delete {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note-list li:hover .btn-delete {
+  opacity: 1;
+}
+
+.note-list .btn-delete:hover {
+  background: var(--red);
+  color: #fff;
 }
 
 .note-list .note-title {

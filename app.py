@@ -120,5 +120,14 @@ def api_note_content(filename):
     return jsonify({"filename": filename, "content": content})
 
 
+@app.route("/api/notes/<path:filename>", methods=["DELETE"])
+def api_note_delete(filename):
+    filepath = os.path.join(NOTES_DIR, filename)
+    if not os.path.isfile(filepath):
+        return jsonify({"error": "文件不存在"}), 404
+    os.remove(filepath)
+    return jsonify({"deleted": filename})
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)
