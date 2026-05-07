@@ -15,6 +15,7 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 AVAILABLE_MODELS = {
     "deepseek-v4-pro": "DeepSeek V4 Pro (推荐)",
+    "deepseek-v4-flash": "DeepSeek V4 Flash",
     "deepseek-chat": "DeepSeek V3",
     "deepseek-reasoner": "DeepSeek R1",
 }
