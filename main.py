@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import re
 import sys
@@ -8,6 +9,12 @@ from src.config import NOTES_DIR, DEEPSEEK_CONCURRENCY, DEEPSEEK_API_KEYS, DEEPS
 from src.fetcher import fetch_content
 from src.generator import generate_notes_batch
 from src.dedup import is_processed, mark_processed
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-5s  %(name)s  %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 
 def sanitize_filename(title: str) -> str:

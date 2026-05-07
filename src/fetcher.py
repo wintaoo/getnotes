@@ -1,10 +1,13 @@
 import re
+import logging
 from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
 
 from .config import DEFAULT_USER_AGENT, WECHAT_USER_AGENT
+
+logger = logging.getLogger("fetcher")
 
 
 def _is_wechat(url: str) -> bool:
@@ -133,15 +136,19 @@ def fetch_content(url: str) -> tuple[str, str]:
 
     # Tier 1: requests + browser UA
     html = _fetch_with_requests(url)
+    if html:
+        logger.info(f"Tier1 requests 成功: {len(html)} 字节")
 
     # Tier 2: WeChat specific UA
     if html and _is_wechat(url):
         html2 = _fetch_with_requests(url, user_agent=WECHAT_USER_AGENT)
         if html2 and len(html2) > len(html):
+            logger.info(f"Tier2 WeChat UA 获得更多内容: {len(html2)} vs {len(html)}")
             html = html2
 
     # Tier 3: Selenium for JS-rendered content
     if not html or len(html) < 500:
+        logger.info("Tier3 尝试 Selenium...")
         html = _fetch_with_selenium(url)
 
     if not html:
@@ -150,7 +157,9 @@ def fetch_content(url: str) -> tuple[str, str]:
     # Extract content with trafilatura first
     result = _extract_with_trafilatura(html, url)
     if result and result[1] and len(result[1]) > 200:
+        logger.info(f"提取成功 (trafilatura): {len(result[1])} 字符")
         return result
 
     # Fallback to BeautifulSoup extraction
+    logger.info("trafilatura 提取不足，降级到 BeautifulSoup")
     return _extract_with_bs4(html)

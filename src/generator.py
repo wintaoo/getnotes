@@ -1,10 +1,13 @@
 import threading
 import time
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
 
 from .config import DEEPSEEK_API_KEYS, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_CONCURRENCY
+
+logger = logging.getLogger("generator")
 
 SYSTEM_PROMPT = """你是一名资深 AI 技术研究员，专门为面试准备整理技术笔记。用户会提供来自微信公众号的技术文章，领域覆盖 Agent、RAG、LangGraph、Harness、OpenClaw、Hermes、Context Engineering、Claude Code、AI Coding 等方向。
 
@@ -162,6 +165,7 @@ def generate_notes(content: str, title: str = "", model: str = None, max_retries
         tried_key_indices.add(key_idx)
 
         try:
+            logger.info(f"调用 API: model={model}, title={title[:40] if title else 'N/A'}, 内容长度={len(content)}")
             kwargs = {
                 "model": model,
                 "messages": [
@@ -176,11 +180,13 @@ def generate_notes(content: str, title: str = "", model: str = None, max_retries
 
             response = client.chat.completions.create(**kwargs)
             result = response.choices[0].message.content
+            logger.info(f"API 成功: {len(result)} 字符")
             if url:
                 result += f"\n\n---\n原文链接：{url}"
             return result
         except Exception as e:
             last_error = e
+            logger.warning(f"API 失败 (第{attempt+1}次): {e}")
             if attempt < max_retries:
                 time.sleep(attempt + 1)
 
