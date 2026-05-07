@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
+<button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="切换主题">☀</button>
 <div class="container">
   <header>
     <h1>GetNotes</h1>
@@ -113,6 +114,28 @@ let currentResults = [];
 let currentIndex = 0;
 let fileUrls = [];
 let historyData = [];
+
+// Theme
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.getElementById('themeToggle').textContent = '☾';
+  }
+}
+function toggleTheme() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    document.documentElement.removeAttribute('data-theme');
+    document.getElementById('themeToggle').textContent = '☀';
+    localStorage.setItem('theme', 'dark');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.getElementById('themeToggle').textContent = '☾';
+    localStorage.setItem('theme', 'light');
+  }
+}
+initTheme();
 
 // Init
 window.onload = () => loadHistory();
