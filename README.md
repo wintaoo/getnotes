@@ -17,7 +17,7 @@
 ### 1. 克隆并安装
 
 ```bash
-git clone https://github.com/yourname/getnotes.git
+git clone https://github.com/wintaoo/getnotes.git
 cd getnotes
 python -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
