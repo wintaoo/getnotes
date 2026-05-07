@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GetNotes — AI 技术笔记生成</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>GetNotes</h1>
+    <p>微信公众号技术文章 → 面试级结构化笔记</p>
+  </header>
+
+  <div class="main-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="card">
+        <div class="sidebar-header">
+          <h2>历史笔记</h2>
+          <button class="btn-icon" onclick="loadHistory()" title="刷新">↻</button>
+        </div>
+        <input class="search-box" type="text" id="searchBox" placeholder="搜索笔记..." oninput="filterNotes()">
+        <ul class="note-list" id="historyList">
+          <li class="empty-state"><div class="empty-icon">📝</div>暂无笔记</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="content-area">
+      <!-- Input Card -->
+      <div class="card" id="inputCard">
+        <h2>输入 URL</h2>
+
+        <!-- Tabs -->
+        <div class="input-tabs">
+          <button class="input-tab active" onclick="switchTab('single')">单个 URL</button>
+          <button class="input-tab" onclick="switchTab('multi')">批量 URL</button>
+          <button class="input-tab" onclick="switchTab('file')">上传文件</button>
+        </div>
+
+        <!-- Single URL -->
+        <div class="tab-panel active" id="panel-single">
+          <div class="input-row">
+            <input type="url" id="singleUrl" placeholder="粘贴微信公众号或其他技术文章 URL" autofocus>
+            <button class="btn btn-primary" onclick="submitSingle()">生成笔记</button>
+          </div>
+        </div>
+
+        <!-- Multi URL -->
+        <div class="tab-panel" id="panel-multi">
+          <textarea id="multiUrls" placeholder="每行输入一个 URL，支持批量处理"></textarea>
+          <button class="btn btn-primary" onclick="submitMulti()" style="width:100%">批量生成笔记</button>
+        </div>
+
+        <!-- File upload -->
+        <div class="tab-panel" id="panel-file">
+          <div class="file-upload">
+            <label for="fileInput">📁 选择 .txt 文件</label>
+            <input type="file" id="fileInput" accept=".txt" onchange="handleFile(this)">
+            <span class="file-name" id="fileName"></span>
+          </div>
+          <button class="btn btn-primary" onclick="submitFile()" style="margin-top:12px;display:none" id="fileSubmitBtn">处理文件中的 URL</button>
+        </div>
+
+        <div class="progress-bar" id="progressBar" style="display:none">
+          <div class="fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <!-- Loading -->
+      <div class="loading-overlay card" id="loading">
+        <div class="typing-indicator">
+          <span></span><span></span><span></span>
+        </div>
+        <p class="loading-text" id="loadingText">准备抓取内容...</p>
+        <p class="loading-url" id="loadingUrl"></p>
+      </div>
+
+      <!-- Preview -->
+      <div class="preview-area card" id="previewArea">
+        <div class="preview-header">
+          <h2 id="previewTitle">笔记预览</h2>
+          <div class="preview-actions">
+            <button class="btn btn-secondary btn-sm" onclick="copyNotes()">复制</button>
+            <button class="btn btn-primary btn-sm" onclick="downloadNotes()">下载 .md</button>
+          </div>
+        </div>
+        <div class="preview-meta" id="previewMeta"></div>
+        <div id="resultTabs" class="result-tabs"></div>
+        <div class="note-content" id="noteContent"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div id="toast" class="toast" style="display:none"></div>
+
+<script>
+// State
+let currentResults = [];
+let currentIndex = 0;
+let fileUrls = [];
+let historyData = [];
+
+// Init
+window.onload = () => loadHistory();
+document.getElementById('singleUrl').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitSingle();
+});
+
+// --- Tab switching ---
+function switchTab(name) {
+  document.querySelectorAll('.input-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.input-tab[onclick*="${name}"]`).classList.add('active');
+  document.getElementById(`panel-${name}`).classList.add('active');
+  if (name === 'single') document.getElementById('singleUrl').focus();
+}
+
+// --- Toast ---
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2000);
+}
+
+// --- History ---
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/notes');
+    const data = await res.json();
+    historyData = data.notes || [];
+    renderHistory(historyData);
+  } catch(e) {
+    document.getElementById('historyList').innerHTML = '<li class="empty-state"><div class="empty-icon">⚠</div>加载失败</li>';
+  }
+}
+
+function renderHistory(notes) {
+  const list = document.getElementById('historyList');
+  if (!notes.length) {
+    list.innerHTML = '<li class="empty-state"><div class="empty-icon">📝</div>暂无笔记</li>';
+    return;
+  }
+  list.innerHTML = notes.map(n => `
+    <li onclick="loadNote('${escapeAttr(n.filename)}')" data-file="${escapeAttr(n.filename)}">
+      <div class="note-title">${escapeHtml(n.filename.replace('.md', ''))}</div>
+      <div class="note-meta">
+        <span>${formatDate(n.mtime)}</span>
+        <span>${formatSize(n.size)}</span>
+      </div>
+    </li>
+  `).join('');
+}
+
+function filterNotes() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  const filtered = historyData.filter(n => n.filename.toLowerCase().includes(q));
+  renderHistory(filtered);
+}
+
+async function loadNote(filename) {
+  document.querySelectorAll('.note-list li').forEach(el => el.classList.remove('active'));
+  document.querySelector(`[data-file="${escapeAttr(filename)}"]`)?.classList.add('active');
+  try {
+    const res = await fetch(`/api/notes/${encodeURIComponent(filename)}`);
+    const data = await res.json();
+    currentResults = [{ filename: data.filename, content: data.content, title: data.filename.replace('.md', ''), url: '', error: null }];
+    currentIndex = 0;
+    showPreview(currentResults[0], 0);
+  } catch(e) {
+    showToast('加载笔记失败');
+  }
+}
+
+// --- Submission ---
+function submitSingle() {
+  const url = document.getElementById('singleUrl').value.trim();
+  if (!url) { showToast('请输入 URL'); return; }
+  generate([url]);
+}
+
+function submitMulti() {
+  const text = document.getElementById('multiUrls').value.trim();
+  if (!text) { showToast('请输入 URL'); return; }
+  const urls = text.split('\n').map(s => s.trim()).filter(Boolean);
+  generate(urls);
+}
+
+function handleFile(input) {
+  const file = input.files[0];
+  document.getElementById('fileName').textContent = file ? file.name : '';
+  document.getElementById('fileSubmitBtn').style.display = file ? 'inline-flex' : 'none';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    fileUrls = e.target.result.split('\n').map(s => s.trim()).filter(l => l && !l.startsWith('#'));
+  };
+  reader.readAsText(file);
+}
+
+function submitFile() {
+  if (!fileUrls.length) { showToast('文件中未找到有效 URL'); return; }
+  generate(fileUrls);
+}
+
+// --- Generate ---
+async function generate(urls) {
+  document.getElementById('inputCard').style.display = 'none';
+  document.getElementById('loading').classList.add('active');
+  document.getElementById('loadingText').textContent = `并发处理 ${urls.length} 个 URL...`;
+  document.getElementById('loadingUrl').textContent = urls.length > 1 ? urls.join(', ') : urls[0];
+  document.getElementById('previewArea').classList.remove('active');
+  document.getElementById('progressBar').style.display = 'block';
+
+  // Animate progress bar while waiting
+  let progress = 0;
+  const progressInterval = setInterval(() => {
+    progress += (90 - progress) * 0.05;
+    document.getElementById('progressFill').style.width = progress + '%';
+  }, 200);
+
+  const startTime = Date.now();
+  currentResults = [];
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls })
+    });
+    const data = await res.json();
+    if (data.results) {
+      currentResults = data.results.map(r => ({ ...r, _time: Date.now() - startTime }));
+    }
+  } catch(e) {
+    currentResults = urls.map(url => ({ url, error: e.message, title: '', filename: '', content: '', _time: 0 }));
+  }
+
+  clearInterval(progressInterval);
+  document.getElementById('progressFill').style.width = '100%';
+  setTimeout(() => {
+    document.getElementById('loading').classList.remove('active');
+    document.getElementById('progressBar').style.display = 'none';
+  }, 300);
+  document.getElementById('inputCard').style.display = '';
+
+  if (currentResults.length === 1) {
+    showPreview(currentResults[0], 0);
+  } else {
+    currentIndex = 0;
+    showMultiPreview();
+  }
+  loadHistory();
+}
+
+// --- Preview ---
+function showPreview(result, idx) {
+  const area = document.getElementById('previewArea');
+  area.classList.add('active');
+  area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  if (result.error) {
+    document.getElementById('previewTitle').textContent = '处理失败';
+    document.getElementById('previewMeta').innerHTML = '';
+    document.getElementById('noteContent').innerHTML = `<p style="color:var(--red)">${escapeHtml(result.error)}</p>`;
+    document.getElementById('resultTabs').innerHTML = '';
+    return;
+  }
+
+  document.getElementById('previewTitle').textContent = result.title || '笔记预览';
+  document.getElementById('noteContent').innerHTML = marked.parse(result.content || '');
+
+  const wordCount = (result.content || '').length;
+  const elapsed = result._time ? (result._time / 1000).toFixed(1) + 's' : '';
+  document.getElementById('previewMeta').innerHTML = `
+    <span>字数: ${wordCount.toLocaleString()}</span>
+    ${elapsed ? `<span>耗时: ${elapsed}</span>` : ''}
+    <span>文件: ${result.filename || '-'}</span>
+  `;
+  document.getElementById('resultTabs').innerHTML = '';
+}
+
+function showMultiPreview() {
+  const tabs = document.getElementById('resultTabs');
+  tabs.innerHTML = currentResults.map((r, i) => {
+    const cls = i === currentIndex ? 'active' : '';
+    const err = r.error ? ' error' : '';
+    return `<button class="result-tab${cls}${err}" onclick="switchResult(${i})">${r.title || r.url || '#'+(i+1)}</button>`;
+  }).join('');
+  switchResult(0);
+}
+
+function switchResult(idx) {
+  currentIndex = idx;
+  document.querySelectorAll('.result-tab').forEach((tab, i) => tab.classList.toggle('active', i === idx));
+  showPreview(currentResults[idx], idx);
+}
+
+// --- Actions ---
+function copyNotes() {
+  const r = currentResults[currentIndex];
+  if (!r || r.error) return;
+  navigator.clipboard.writeText(r.content).then(() => showToast('已复制到剪贴板'));
+}
+
+function downloadNotes() {
+  const r = currentResults[currentIndex];
+  if (!r || r.error) return;
+  const blob = new Blob([r.content], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = r.filename || 'notes.md';
+  a.click();
+}
+
+// --- Helpers ---
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function escapeAttr(s) {
+  return s.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function formatDate(ts) {
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 86400000) return '今天 ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+  if (diff < 172800000) return '昨天';
+  return d.toLocaleDateString('zh-CN', {month:'short', day:'numeric'});
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  return (bytes / 1024).toFixed(1) + 'KB';
+}
+</script>
+</body>
+</html>

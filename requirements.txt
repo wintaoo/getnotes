@@ -1,0 +1,8 @@
+openai
+requests
+trafilatura
+beautifulsoup4
+selenium
+python-dotenv
+lxml[html_clean]
+flask
