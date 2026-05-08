@@ -132,11 +132,17 @@ def api_generate():
                         f.write(gen["content"])
                     mark_processed(task["url"], task["title"], filename)
                     logger.info(f"  [保存] {filename}")
-                    results.append({
+                    note_info = {
                         "url": task["url"], "title": task["title"],
                         "filename": filename, "content": gen["content"],
                         "error": None, "skipped": False,
-                    })
+                    }
+                    results.append(note_info)
+                    yield _sse({"type": "note_saved",
+                                "filename": filename,
+                                "title": task["title"],
+                                "size": os.path.getsize(filepath),
+                                "mtime": os.path.getmtime(filepath)})
                 yield _sse({"type": "progress", "step": "generate",
                              "message": f"生成笔记 ({len(results)}/{len(urls)})",
                              "current": len(results), "total": len(urls)})

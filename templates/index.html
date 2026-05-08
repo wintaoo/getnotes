@@ -193,6 +193,27 @@ function renderHistory(notes) {
   `).join('');
 }
 
+function addToHistory(note) {
+  historyData.unshift(note);
+  const list = document.getElementById('historyList');
+  const empty = list.querySelector('.empty-state');
+  if (empty) empty.remove();
+  const item = document.createElement('li');
+  item.setAttribute('data-file', note.filename);
+  item.innerHTML = `
+    <div class="note-info" onclick="loadNote('${escapeAttr(note.filename)}')">
+      <div class="note-title">${escapeHtml(note.filename.replace('.md', ''))}</div>
+      <div class="note-meta">
+        <span>${formatDate(note.mtime)}</span>
+        <span>${formatSize(note.size)}</span>
+      </div>
+    </div>
+    <button class="btn-regen" onclick="regenNote(event, '${escapeAttr(note.filename)}')" title="重新生成">🔄</button>
+    <button class="btn-delete" onclick="deleteNote(event, '${escapeAttr(note.filename)}')" title="删除">×</button>
+  `;
+  list.insertBefore(item, list.firstChild);
+}
+
 async function regenNote(event, filename) {
   event.stopPropagation();
   if (!confirm(`确定重新生成「${filename.replace('.md', '')}」?`)) return;
@@ -333,6 +354,12 @@ async function generate(urls) {
             }
           } else if (data.type === 'complete') {
             currentResults = data.results.map(r => ({ ...r, _time: Date.now() - startTime }));
+          } else if (data.type === 'note_saved') {
+            addToHistory({
+              filename: data.filename,
+              size: data.size,
+              mtime: data.mtime
+            });
           }
         } catch(e) {}
       }
