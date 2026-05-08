@@ -628,6 +628,30 @@ textarea:focus { border-color: var(--border-focus); }
   align-items: center;
 }
 
+.index-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.index-link:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.index-icon {
+  font-size: 16px;
+}
+
 .search-box {
   width: 100%;
   padding: 8px 12px;
