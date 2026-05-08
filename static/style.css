@@ -477,6 +477,27 @@ textarea:focus { border-color: var(--border-focus); }
 .result-tab.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 .result-tab.error { color: var(--red); }
 
+/* Note editor */
+.note-editor {
+  width: 100%;
+  min-height: 60vh;
+  padding: 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  color: var(--text-primary);
+  line-height: 1.8;
+  resize: vertical;
+  outline: none;
+  tab-size: 2;
+}
+
+.note-editor:focus {
+  border-color: var(--border-focus);
+}
+
 /* Note Content */
 .note-content {
   background: var(--bg-primary);

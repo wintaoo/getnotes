@@ -27,6 +27,51 @@ def _save_tags(tags: dict):
 
 
 TAG_LABELS = ["", "优", "良", "中", "差"]
+
+QUESTIONS_FILE = os.path.join(NOTES_DIR, "questions.md")
+
+import re
+
+def _extract_and_append_questions(markdown: str, url: str, title: str):
+    """Extract interview questions from generated notes and upsert to questions.md."""
+    questions = set()
+    # Pattern 1: 面经格式 — ## N. 题目内容
+    for m in re.finditer(r"^## \d+\. (.+)$", markdown, re.MULTILINE):
+        q = m.group(1).strip()
+        if q and len(q) > 3:
+            questions.add(q)
+    # Pattern 2: 技术笔记 Q&A — **Q: 题目**
+    for m in re.finditer(r"\*\*Q:\s*(.+?)\*\*", markdown):
+        q = m.group(1).strip()
+        if q and len(q) > 3:
+            questions.add(q)
+
+    os.makedirs(NOTES_DIR, exist_ok=True)
+
+    # Read existing table, drop rows with the same URL (handles regen)
+    header = "| 题目 | 来源 |\n|------|------|\n"
+    old_rows = []
+    escaped_url = re.escape(url)
+    if os.path.isfile(QUESTIONS_FILE):
+        with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("|") and url in line:
+                    continue  # Remove old entries from this URL
+                old_rows.append(line)
+
+    new_rows = ""
+    for q in sorted(questions):
+        new_rows += f"| {q} | [{title}]({url}) |\n"
+
+    with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+        for row in old_rows:
+            f.write(row)
+        if not old_rows:
+            f.write(header)
+        f.write(new_rows)
+
+    if questions:
+        logger.info(f"  [题库] +{len(questions)} 题")
 from src.fetcher import fetch_content
 from src.generator import generate_notes_batch
 from src.dedup import is_processed, mark_processed, get_url_by_filename
@@ -150,6 +195,7 @@ def api_generate():
                         f.write(gen["content"])
                     mark_processed(task["url"], task["title"], filename)
                     logger.info(f"  [保存] {filename}")
+                    _extract_and_append_questions(gen["content"], task["url"], task["title"])
                     note_info = {
                         "url": task["url"], "title": task["title"],
                         "filename": filename, "content": gen["content"],
@@ -197,6 +243,7 @@ def api_regenerate(filename):
         filepath = os.path.join(NOTES_DIR, filename)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(gen["content"])
+        _extract_and_append_questions(gen["content"], url, title)
 
         return jsonify({
             "filename": filename,
@@ -213,15 +260,16 @@ def api_notes():
     tags = _load_tags()
     files = []
     if os.path.isdir(NOTES_DIR):
-        for f in sorted(os.listdir(NOTES_DIR), reverse=True):
-            if f.endswith(".md"):
-                fpath = os.path.join(NOTES_DIR, f)
-                files.append({
-                    "filename": f,
-                    "size": os.path.getsize(fpath),
-                    "mtime": os.path.getmtime(fpath),
-                    "tag": tags.get(f, ""),
-                })
+        md_files = [f for f in os.listdir(NOTES_DIR) if f.endswith(".md")]
+        md_files.sort(key=lambda f: os.path.getmtime(os.path.join(NOTES_DIR, f)), reverse=True)
+        for f in md_files:
+            fpath = os.path.join(NOTES_DIR, f)
+            files.append({
+                "filename": f,
+                "size": os.path.getsize(fpath),
+                "mtime": os.path.getmtime(fpath),
+                "tag": tags.get(f, ""),
+            })
     return jsonify({"notes": files})
 
 
@@ -233,6 +281,18 @@ def api_note_content(filename):
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
     return jsonify({"filename": filename, "content": content})
+
+
+@app.route("/api/notes/<path:filename>", methods=["PUT"])
+def api_note_update(filename):
+    filepath = os.path.join(NOTES_DIR, filename)
+    if not os.path.isfile(filepath):
+        return jsonify({"error": "文件不存在"}), 404
+    data = request.get_json()
+    content = data.get("content", "")
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(content)
+    return jsonify({"filename": filename, "saved": True})
 
 
 @app.route("/api/tags", methods=["GET"])

@@ -88,14 +88,20 @@
       <div class="preview-area card" id="previewArea">
         <div class="preview-header">
           <h2 id="previewTitle">笔记预览</h2>
-          <div class="preview-actions">
+          <div class="preview-actions" id="previewActionsView">
+            <button class="btn btn-secondary btn-sm" onclick="editNote()">编辑</button>
             <button class="btn btn-secondary btn-sm" onclick="copyNotes()">复制</button>
             <button class="btn btn-primary btn-sm" onclick="downloadNotes()">下载 .md</button>
+          </div>
+          <div class="preview-actions" id="previewActionsEdit" style="display:none">
+            <button class="btn btn-primary btn-sm" onclick="saveEdit()">保存</button>
+            <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">取消</button>
           </div>
         </div>
         <div class="preview-meta" id="previewMeta"></div>
         <div id="resultTabs" class="result-tabs"></div>
         <div class="note-content" id="noteContent"></div>
+        <textarea class="note-editor" id="noteEditor" style="display:none" spellcheck="false"></textarea>
       </div>
     </main>
   </div>
@@ -308,6 +314,7 @@ function submitSingle() {
   const url = document.getElementById('singleUrl').value.trim();
   if (!url) { showToast('请输入 URL'); return; }
   generate([url]);
+  document.getElementById('singleUrl').value = '';
 }
 
 function submitMulti() {
@@ -315,6 +322,7 @@ function submitMulti() {
   if (!text) { showToast('请输入 URL'); return; }
   const urls = text.split('\n').map(s => s.trim()).filter(Boolean);
   generate(urls);
+  document.getElementById('multiUrls').value = '';
 }
 
 function handleFile(input) {
@@ -474,6 +482,61 @@ function downloadNotes() {
   a.download = r.filename || 'notes.md';
   a.click();
 }
+
+// --- Inline editing ---
+let editingFilename = null;
+
+function editNote() {
+  const r = currentResults[currentIndex];
+  if (!r || r.error) return;
+  editingFilename = r.filename;
+  document.getElementById('noteContent').style.display = 'none';
+  document.getElementById('previewActionsView').style.display = 'none';
+  const editor = document.getElementById('noteEditor');
+  editor.value = r.content;
+  editor.style.display = 'block';
+  document.getElementById('previewActionsEdit').style.display = 'flex';
+}
+
+async function saveEdit() {
+  if (!editingFilename) return;
+  const content = document.getElementById('noteEditor').value;
+  try {
+    await fetch(`/api/notes/${encodeURIComponent(editingFilename)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content })
+    });
+    const r = currentResults[currentIndex];
+    if (r) r.content = content;
+    cancelEdit();
+    showPreview(currentResults[currentIndex], currentIndex);
+    showToast('已保存');
+  } catch(e) {
+    showToast('保存失败');
+  }
+}
+
+function cancelEdit() {
+  editingFilename = null;
+  document.getElementById('noteEditor').style.display = 'none';
+  document.getElementById('previewActionsEdit').style.display = 'none';
+  document.getElementById('noteContent').style.display = '';
+  document.getElementById('previewActionsView').style.display = 'flex';
+}
+
+// --- Auto-copy on selection ---
+document.addEventListener('mouseup', () => {
+  const sel = window.getSelection();
+  const text = sel.toString().trim();
+  if (!text) return;
+  const content = document.getElementById('noteContent');
+  const editor = document.getElementById('noteEditor');
+  if (!content.contains(sel.anchorNode) && !editor.contains(sel.anchorNode)) return;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('已复制选中内容');
+  }).catch(() => {});
+});
 
 // --- Helpers ---
 function escapeHtml(s) {
