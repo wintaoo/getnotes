@@ -75,18 +75,13 @@
           <button class="btn btn-primary" onclick="submitFile()" style="margin-top:12px;display:none" id="fileSubmitBtn">处理文件中的 URL</button>
         </div>
 
-        <div class="progress-bar" id="progressBar" style="display:none">
-          <div class="fill" id="progressFill"></div>
-        </div>
       </div>
 
-      <!-- Loading -->
-      <div class="loading-overlay card" id="loading">
-        <div class="typing-indicator">
-          <span></span><span></span><span></span>
-        </div>
-        <p class="loading-text" id="loadingText">准备抓取内容...</p>
-        <p class="loading-url" id="loadingUrl"></p>
+      <!-- Task status bar -->
+      <div class="task-bar" id="taskBar">
+        <span class="task-dot"></span>
+        <span class="task-text" id="taskText"></span>
+        <span class="task-progress"><span class="task-fill" id="taskFill"></span></span>
       </div>
 
       <!-- Preview -->
@@ -296,6 +291,7 @@ function filterNotes() {
 async function loadNote(filename) {
   document.querySelectorAll('.note-list li').forEach(el => el.classList.remove('active'));
   document.querySelector(`[data-file="${escapeAttr(filename)}"]`)?.classList.add('active');
+  if (generationRunning) userBrowsing = true;
   try {
     const res = await fetch(`/api/notes/${encodeURIComponent(filename)}`);
     const data = await res.json();
@@ -339,17 +335,22 @@ function submitFile() {
 }
 
 // --- Generate ---
-async function generate(urls) {
-  document.getElementById('inputCard').style.display = 'none';
-  document.getElementById('loading').classList.add('active');
-  document.getElementById('loadingText').textContent = `准备处理 ${urls.length} 个 URL...`;
-  document.getElementById('loadingUrl').textContent = '';
-  document.getElementById('previewArea').classList.remove('active');
-  document.getElementById('progressBar').style.display = 'block';
-  document.getElementById('progressFill').style.width = '0%';
+let generationRunning = false;
+let userBrowsing = false;
 
+async function generate(urls) {
+  generationRunning = true;
+  userBrowsing = false;
   const startTime = Date.now();
   currentResults = [];
+
+  // Show compact task bar
+  const taskBar = document.getElementById('taskBar');
+  const taskText = document.getElementById('taskText');
+  const taskFill = document.getElementById('taskFill');
+  taskBar.classList.add('active');
+  taskText.textContent = `处理 ${urls.length} 个 URL...`;
+  taskFill.style.width = '0%';
 
   const model = document.getElementById('modelSelect').value;
   try {
@@ -376,10 +377,9 @@ async function generate(urls) {
         try {
           const data = JSON.parse(line.slice(6));
           if (data.type === 'progress') {
-            document.getElementById('loadingText').textContent = data.message;
+            taskText.textContent = data.message;
             if (data.total) {
-              const pct = (data.current / data.total) * 100;
-              document.getElementById('progressFill').style.width = pct + '%';
+              taskFill.style.width = (data.current / data.total) * 100 + '%';
             }
           } else if (data.type === 'complete') {
             currentResults = data.results.map(r => ({ ...r, _time: Date.now() - startTime }));
@@ -397,20 +397,22 @@ async function generate(urls) {
     currentResults = urls.map(url => ({ url, error: e.message, title: '', filename: '', content: '', _time: 0 }));
   }
 
-  document.getElementById('progressFill').style.width = '100%';
-  setTimeout(() => {
-    document.getElementById('loading').classList.remove('active');
-    document.getElementById('progressBar').style.display = 'none';
-  }, 300);
-  document.getElementById('inputCard').style.display = '';
+  // Done
+  taskFill.style.width = '100%';
+  taskText.textContent = `完成 ${currentResults.length} 篇`;
 
-  if (currentResults.length === 1) {
-    showPreview(currentResults[0], 0);
-  } else if (currentResults.length > 1) {
-    currentIndex = 0;
-    showMultiPreview();
+  setTimeout(() => taskBar.classList.remove('active'), 2000);
+  generationRunning = false;
+
+  // Only auto-show results if user hasn't navigated away to read another note
+  if (!userBrowsing) {
+    if (currentResults.length === 1) {
+      showPreview(currentResults[0], 0);
+    } else if (currentResults.length > 1) {
+      currentIndex = 0;
+      showMultiPreview();
+    }
   }
-  loadHistory();
 }
 
 // --- Preview ---

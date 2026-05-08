@@ -365,49 +365,58 @@ textarea:focus { border-color: var(--border-focus); }
   width: 0%;
 }
 
-/* Loading state */
-.loading-overlay {
+/* Task status bar */
+.task-bar {
   display: none;
-  text-align: center;
-  padding: 40px 20px;
-}
-
-.loading-overlay.active { display: block; }
-
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
   margin-bottom: 12px;
-}
-
-.typing-indicator span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: typing 1.4s infinite ease-in-out;
-}
-
-.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes typing {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-8px); opacity: 1; }
-}
-
-.loading-text {
-  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   font-size: 13px;
 }
 
-.loading-url {
-  color: var(--accent);
-  font-size: 12px;
-  margin-top: 6px;
-  font-family: 'JetBrains Mono', monospace;
-  word-break: break-all;
+.task-bar.active { display: flex; }
+
+.task-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: pulse 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.task-text {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-progress {
+  flex: 1;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 40px;
+}
+
+.task-fill {
+  display: block;
+  height: 100%;
+  background: var(--gradient);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+  width: 0%;
 }
 
 /* Preview Area */
