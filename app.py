@@ -28,50 +28,31 @@ def _save_tags(tags: dict):
 
 TAG_LABELS = ["", "优", "良", "中", "差"]
 
-QUESTIONS_FILE = os.path.join(NOTES_DIR, "questions.md")
+INDEX_FILE = os.path.join(NOTES_DIR, "index.md")
 
-import re
+import sqlite3
 
-def _extract_and_append_questions(markdown: str, url: str, title: str):
-    """Extract interview questions from generated notes and upsert to questions.md."""
-    questions = set()
-    # Pattern 1: 面经格式 — ## N. 题目内容
-    for m in re.finditer(r"^## \d+\. (.+)$", markdown, re.MULTILINE):
-        q = m.group(1).strip()
-        if q and len(q) > 3:
-            questions.add(q)
-    # Pattern 2: 技术笔记 Q&A — **Q: 题目**
-    for m in re.finditer(r"\*\*Q:\s*(.+?)\*\*", markdown):
-        q = m.group(1).strip()
-        if q and len(q) > 3:
-            questions.add(q)
+def _rebuild_index():
+    """Rebuild notes/index.md — a table of all notes with their source URLs."""
+    db = os.path.join(NOTES_DIR, ".cache.db")
+    rows = []
+    if os.path.isfile(db):
+        conn = sqlite3.connect(db)
+        rows = conn.execute(
+            "SELECT filename, title, url FROM processed ORDER BY created_at DESC"
+        ).fetchall()
+        conn.close()
 
     os.makedirs(NOTES_DIR, exist_ok=True)
+    with open(INDEX_FILE, "w", encoding="utf-8") as f:
+        f.write("# 笔记索引\n\n")
+        f.write("| 笔记 | 原文链接 |\n|------|----------|\n")
+        for filename, title, url in rows:
+            safe_title = title.replace("|", "\\|") if title else filename.replace(".md", "")
+            f.write(f"| {safe_title} | [{filename}]({url}) |\n")
+        f.write(f"\n共 {len(rows)} 篇笔记\n")
 
-    # Read existing table, drop rows with the same URL (handles regen)
-    header = "| 题目 | 来源 |\n|------|------|\n"
-    old_rows = []
-    escaped_url = re.escape(url)
-    if os.path.isfile(QUESTIONS_FILE):
-        with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("|") and url in line:
-                    continue  # Remove old entries from this URL
-                old_rows.append(line)
-
-    new_rows = ""
-    for q in sorted(questions):
-        new_rows += f"| {q} | [{title}]({url}) |\n"
-
-    with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-        for row in old_rows:
-            f.write(row)
-        if not old_rows:
-            f.write(header)
-        f.write(new_rows)
-
-    if questions:
-        logger.info(f"  [题库] +{len(questions)} 题")
+    logger.info(f"  [索引] 已重建, {len(rows)} 篇")
 from src.fetcher import fetch_content
 from src.generator import generate_notes_batch
 from src.dedup import is_processed, mark_processed, get_url_by_filename
@@ -195,7 +176,7 @@ def api_generate():
                         f.write(gen["content"])
                     mark_processed(task["url"], task["title"], filename)
                     logger.info(f"  [保存] {filename}")
-                    _extract_and_append_questions(gen["content"], task["url"], task["title"])
+                    _rebuild_index()
                     note_info = {
                         "url": task["url"], "title": task["title"],
                         "filename": filename, "content": gen["content"],
@@ -243,7 +224,7 @@ def api_regenerate(filename):
         filepath = os.path.join(NOTES_DIR, filename)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(gen["content"])
-        _extract_and_append_questions(gen["content"], url, title)
+        _rebuild_index()
 
         return jsonify({
             "filename": filename,
@@ -323,6 +304,7 @@ def api_note_delete(filename):
     tags = _load_tags()
     tags.pop(filename, None)
     _save_tags(tags)
+    _rebuild_index()
     return jsonify({"deleted": filename})
 
 
