@@ -108,7 +108,7 @@ header p {
 }
 
 .sidebar {
-  width: 280px;
+  width: 360px;
   flex-shrink: 0;
   position: sticky;
   top: 24px;
@@ -837,7 +837,7 @@ textarea:focus { border-color: var(--border-focus); }
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .main-layout { flex-direction: column; }
   .sidebar { width: 100%; position: static; }
   .note-list { max-height: 200px; }
