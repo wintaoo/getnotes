@@ -702,6 +702,75 @@ textarea:focus { border-color: var(--border-focus); }
   color: var(--accent);
 }
 
+.note-list .btn-tag {
+  min-width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 1;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.note-list .btn-tag.tag-none {
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0;
+}
+
+.note-list li:hover .btn-tag.tag-none {
+  opacity: 1;
+}
+
+.note-list .btn-tag.tag-none:hover {
+  background: var(--bg-input);
+  color: var(--text-secondary);
+}
+
+.note-list .btn-tag.tag-优 {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--green);
+}
+
+.note-list .btn-tag.tag-优:hover {
+  background: rgba(63, 185, 80, 0.3);
+}
+
+.note-list .btn-tag.tag-良 {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent);
+}
+
+.note-list .btn-tag.tag-良:hover {
+  background: rgba(88, 166, 255, 0.3);
+}
+
+.note-list .btn-tag.tag-中 {
+  background: rgba(210, 153, 29, 0.15);
+  color: var(--orange);
+}
+
+.note-list .btn-tag.tag-中:hover {
+  background: rgba(210, 153, 29, 0.3);
+}
+
+.note-list .btn-tag.tag-差 {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--red);
+}
+
+.note-list .btn-tag.tag-差:hover {
+  background: rgba(248, 81, 73, 0.3);
+}
+
 .note-list .note-title {
   font-weight: 500;
   overflow: hidden;

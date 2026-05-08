@@ -9,6 +9,24 @@ sys.path.insert(0, os.path.dirname(__file__))
 from flask import Flask, render_template, request, jsonify, Response
 
 from src.config import NOTES_DIR, DEEPSEEK_CONCURRENCY, DEEPSEEK_MODEL, AVAILABLE_MODELS
+
+TAGS_FILE = os.path.join(NOTES_DIR, "tags.json")
+
+
+def _load_tags() -> dict:
+    if os.path.isfile(TAGS_FILE):
+        with open(TAGS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def _save_tags(tags: dict):
+    os.makedirs(NOTES_DIR, exist_ok=True)
+    with open(TAGS_FILE, "w", encoding="utf-8") as f:
+        json.dump(tags, f, ensure_ascii=False)
+
+
+TAG_LABELS = ["", "优", "良", "中", "差"]
 from src.fetcher import fetch_content
 from src.generator import generate_notes_batch
 from src.dedup import is_processed, mark_processed, get_url_by_filename
@@ -192,6 +210,7 @@ def api_regenerate(filename):
 
 @app.route("/api/notes", methods=["GET"])
 def api_notes():
+    tags = _load_tags()
     files = []
     if os.path.isdir(NOTES_DIR):
         for f in sorted(os.listdir(NOTES_DIR), reverse=True):
@@ -201,6 +220,7 @@ def api_notes():
                     "filename": f,
                     "size": os.path.getsize(fpath),
                     "mtime": os.path.getmtime(fpath),
+                    "tag": tags.get(f, ""),
                 })
     return jsonify({"notes": files})
 
@@ -215,12 +235,34 @@ def api_note_content(filename):
     return jsonify({"filename": filename, "content": content})
 
 
+@app.route("/api/tags", methods=["GET"])
+def api_tags():
+    return jsonify({"tags": _load_tags()})
+
+
+@app.route("/api/tags/<path:filename>", methods=["PUT"])
+def api_set_tag(filename):
+    tag = request.get_json().get("tag", "")
+    if tag not in TAG_LABELS:
+        return jsonify({"error": f"无效标签: {tag}"}), 400
+    tags = _load_tags()
+    if tag:
+        tags[filename] = tag
+    else:
+        tags.pop(filename, None)
+    _save_tags(tags)
+    return jsonify({"filename": filename, "tag": tag})
+
+
 @app.route("/api/notes/<path:filename>", methods=["DELETE"])
 def api_note_delete(filename):
     filepath = os.path.join(NOTES_DIR, filename)
     if not os.path.isfile(filepath):
         return jsonify({"error": "文件不存在"}), 404
     os.remove(filepath)
+    tags = _load_tags()
+    tags.pop(filename, None)
+    _save_tags(tags)
     return jsonify({"deleted": filename})
 
 

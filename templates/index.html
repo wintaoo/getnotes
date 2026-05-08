@@ -178,7 +178,9 @@ function renderHistory(notes) {
     list.innerHTML = '<li class="empty-state"><div class="empty-icon">📝</div>暂无笔记</li>';
     return;
   }
-  list.innerHTML = notes.map(n => `
+  list.innerHTML = notes.map(n => {
+    const tag = n.tag || '';
+    return `
     <li data-file="${escapeAttr(n.filename)}">
       <div class="note-info" onclick="loadNote('${escapeAttr(n.filename)}')">
         <div class="note-title">${escapeHtml(n.filename.replace('.md', ''))}</div>
@@ -187,10 +189,11 @@ function renderHistory(notes) {
           <span>${formatSize(n.size)}</span>
         </div>
       </div>
+      <button class="btn-tag tag-${tag || 'none'}" onclick="cycleTag(event, '${escapeAttr(n.filename)}')" title="切换标签">${tag || '+'}</button>
       <button class="btn-regen" onclick="regenNote(event, '${escapeAttr(n.filename)}')" title="重新生成">🔄</button>
       <button class="btn-delete" onclick="deleteNote(event, '${escapeAttr(n.filename)}')" title="删除">×</button>
     </li>
-  `).join('');
+  `}).join('');
 }
 
 function addToHistory(note) {
@@ -208,10 +211,36 @@ function addToHistory(note) {
         <span>${formatSize(note.size)}</span>
       </div>
     </div>
+    <button class="btn-tag tag-none" onclick="cycleTag(event, '${escapeAttr(note.filename)}')" title="切换标签">+</button>
     <button class="btn-regen" onclick="regenNote(event, '${escapeAttr(note.filename)}')" title="重新生成">🔄</button>
     <button class="btn-delete" onclick="deleteNote(event, '${escapeAttr(note.filename)}')" title="删除">×</button>
   `;
   list.insertBefore(item, list.firstChild);
+}
+
+const TAG_ORDER = ['', '优', '良', '中', '差'];
+
+async function cycleTag(event, filename) {
+  event.stopPropagation();
+  const btn = event.currentTarget;
+  const current = btn.textContent === '+' ? '' : btn.textContent;
+  const idx = TAG_ORDER.indexOf(current);
+  const next = TAG_ORDER[(idx + 1) % TAG_ORDER.length];
+
+  try {
+    await fetch(`/api/tags/${encodeURIComponent(filename)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tag: next })
+    });
+    btn.textContent = next || '+';
+    btn.className = `btn-tag tag-${next || 'none'}`;
+    // Update historyData
+    const note = historyData.find(n => n.filename === filename);
+    if (note) note.tag = next;
+  } catch(e) {
+    showToast('标签设置失败');
+  }
 }
 
 async function regenNote(event, filename) {
