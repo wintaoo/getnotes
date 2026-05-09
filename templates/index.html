@@ -556,9 +556,16 @@ function escapeAttr(s) {
 function formatDate(ts) {
   const d = new Date(ts * 1000);
   const now = new Date();
-  const diff = now - d;
-  if (diff < 86400000) return '今天 ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
-  if (diff < 172800000) return '昨天';
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart - 86400000);
+  const noteDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  if (noteDay.getTime() === todayStart.getTime()) {
+    return '今天 ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+  }
+  if (noteDay.getTime() === yesterdayStart.getTime()) {
+    return '昨天 ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+  }
   return d.toLocaleDateString('zh-CN', {month:'short', day:'numeric'});
 }
 
