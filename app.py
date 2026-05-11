@@ -276,6 +276,50 @@ def api_note_update(filename):
     return jsonify({"filename": filename, "saved": True})
 
 
+@app.route("/api/notes/<path:filename>/rename", methods=["PUT"])
+def api_note_rename(filename):
+    filepath = os.path.join(NOTES_DIR, filename)
+    if not os.path.isfile(filepath):
+        return jsonify({"error": "文件不存在"}), 404
+
+    data = request.get_json()
+    new_name = data.get("new_name", "").strip()
+    if not new_name:
+        return jsonify({"error": "新名称不能为空"}), 400
+
+    new_filename = sanitize_filename(new_name) + ".md"
+    new_filepath = os.path.join(NOTES_DIR, new_filename)
+
+    if new_filename == filename:
+        return jsonify({"error": "新名称与旧名称相同"}), 400
+
+    if os.path.exists(new_filepath):
+        return jsonify({"error": "该名称已存在"}), 409
+
+    os.rename(filepath, new_filepath)
+
+    db = os.path.join(NOTES_DIR, ".cache.db")
+    if os.path.isfile(db):
+        conn = sqlite3.connect(db)
+        conn.execute("UPDATE processed SET filename = ? WHERE filename = ?", (new_filename, filename))
+        conn.commit()
+        conn.close()
+
+    tags = _load_tags()
+    if filename in tags:
+        tags[new_filename] = tags.pop(filename)
+        _save_tags(tags)
+
+    _rebuild_index()
+
+    logger.info(f"  [重命名] {filename} -> {new_filename}")
+    return jsonify({
+        "old_filename": filename,
+        "new_filename": new_filename,
+        "renamed": True,
+    })
+
+
 @app.route("/api/tags", methods=["GET"])
 def api_tags():
     return jsonify({"tags": _load_tags()})

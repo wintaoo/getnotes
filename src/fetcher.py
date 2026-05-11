@@ -31,7 +31,17 @@ def _fetch_with_requests(url: str, user_agent: str = DEFAULT_USER_AGENT) -> str 
     try:
         resp = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
         resp.raise_for_status()
-        resp.encoding = resp.apparent_encoding
+        # Prefer UTF-8 to avoid mojibake on Chinese pages
+        content_type = resp.headers.get("Content-Type", "")
+        if "charset=utf-8" in content_type.lower() or "charset=\"utf-8\"" in content_type.lower():
+            resp.encoding = "utf-8"
+        else:
+            # Try UTF-8 first, fall back to chardet
+            try:
+                resp.content.decode("utf-8")
+                resp.encoding = "utf-8"
+            except UnicodeDecodeError:
+                resp.encoding = resp.apparent_encoding
         return resp.text
     except requests.RequestException:
         return None

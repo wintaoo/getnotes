@@ -94,6 +94,7 @@
           <h2 id="previewTitle">笔记预览</h2>
           <div class="preview-actions" id="previewActionsView">
             <button class="btn btn-secondary btn-sm" onclick="editNote()">编辑</button>
+            <button class="btn btn-secondary btn-sm" onclick="renameCurrentNote()">重命名</button>
             <button class="btn btn-secondary btn-sm" onclick="copyNotes()">复制</button>
             <button class="btn btn-primary btn-sm" onclick="downloadNotes()">下载 .md</button>
           </div>
@@ -195,6 +196,7 @@ function renderHistory(notes) {
         </div>
       </div>
       <button class="btn-tag tag-${tag || 'none'}" onclick="cycleTag(event, '${escapeAttr(n.filename)}')" title="切换标签">${tag || '+'}</button>
+      <button class="btn-rename" onclick="startRename(event, '${escapeAttr(n.filename)}')" title="重命名">✏</button>
       <button class="btn-regen" onclick="regenNote(event, '${escapeAttr(n.filename)}')" title="重新生成">🔄</button>
       <button class="btn-delete" onclick="deleteNote(event, '${escapeAttr(n.filename)}')" title="删除">×</button>
     </li>
@@ -217,6 +219,7 @@ function addToHistory(note) {
       </div>
     </div>
     <button class="btn-tag tag-none" onclick="cycleTag(event, '${escapeAttr(note.filename)}')" title="切换标签">+</button>
+    <button class="btn-rename" onclick="startRename(event, '${escapeAttr(note.filename)}')" title="重命名">✏</button>
     <button class="btn-regen" onclick="regenNote(event, '${escapeAttr(note.filename)}')" title="重新生成">🔄</button>
     <button class="btn-delete" onclick="deleteNote(event, '${escapeAttr(note.filename)}')" title="删除">×</button>
   `;
@@ -290,6 +293,72 @@ async function deleteNote(event, filename) {
   } catch(e) {
     showToast('删除失败');
   }
+}
+
+function cancelRenameInput(el, originalValue) {
+  const parent = el.parentNode;
+  const div = document.createElement('div');
+  div.className = 'note-title';
+  div.textContent = originalValue;
+  parent.replaceChild(div, el);
+}
+
+function confirmRename(filename, newName, inputEl, titleEl) {
+  const oldName = filename.replace('.md', '');
+  if (!newName || newName === oldName) {
+    cancelRenameInput(inputEl, oldName);
+    return;
+  }
+  fetch(`/api/notes/${encodeURIComponent(filename)}/rename`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_name: newName })
+  }).then(res => {
+    if (res.ok) return res.json();
+    return res.json().then(err => { throw new Error(err.error || 'unknown'); });
+  }).then(data => {
+    showToast('已重命名');
+    if (currentResults[currentIndex]?.filename === filename) {
+      currentResults[currentIndex].filename = data.new_filename;
+      currentResults[currentIndex].title = data.new_filename.replace('.md', '');
+    }
+    loadHistory();
+    const titleEl = document.getElementById('previewTitle');
+    if (titleEl && currentResults[currentIndex]?.filename === data.new_filename) {
+      titleEl.textContent = data.new_filename.replace('.md', '');
+    }
+  }).catch(e => {
+    showToast('重命名失败: ' + (e.message || 'unknown'));
+    cancelRenameInput(inputEl, oldName);
+  });
+}
+
+function startRename(event, filename) {
+  event.stopPropagation();
+  const li = event.currentTarget.closest('li');
+  const titleDiv = li.querySelector('.note-title');
+  if (!titleDiv) return;
+  const oldName = titleDiv.textContent;
+
+  const input = document.createElement('input');
+  input.className = 'rename-input';
+  input.value = oldName;
+  input.setAttribute('data-original', oldName);
+  titleDiv.parentNode.replaceChild(input, titleDiv);
+  input.focus();
+  input.select();
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      input.blur();
+    } else if (e.key === 'Escape') {
+      cancelRenameInput(input, input.getAttribute('data-original'));
+    }
+  });
+  input.addEventListener('blur', () => {
+    confirmRename(filename, input.value.trim(), input, titleDiv);
+  });
 }
 
 function filterNotes() {
@@ -471,6 +540,68 @@ function switchResult(idx) {
 }
 
 // --- Actions ---
+function renameCurrentNote() {
+  const r = currentResults[currentIndex];
+  if (!r || r.error || !r.filename) return;
+  const titleEl = document.getElementById('previewTitle');
+  if (!titleEl) return;
+  const oldName = titleEl.textContent;
+
+  const input = document.createElement('input');
+  input.className = 'rename-input';
+  input.style.cssText = 'font-size:1.25rem;font-weight:700;width:100%;padding:4px 8px;border:1px solid var(--accent);border-radius:6px;background:var(--bg);color:var(--text);';
+  input.value = oldName;
+  titleEl.parentNode.replaceChild(input, titleEl);
+  input.focus();
+  input.select();
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      input.blur();
+    } else if (e.key === 'Escape') {
+      const h2 = document.createElement('h2');
+      h2.id = 'previewTitle';
+      h2.textContent = oldName;
+      input.parentNode.replaceChild(h2, input);
+    }
+  });
+  input.addEventListener('blur', () => {
+    const newName = input.value.trim();
+    if (!newName || newName === oldName) {
+      const h2 = document.createElement('h2');
+      h2.id = 'previewTitle';
+      h2.textContent = oldName;
+      input.parentNode.replaceChild(h2, input);
+      return;
+    }
+    const filename = r.filename;
+    fetch(`/api/notes/${encodeURIComponent(filename)}/rename`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_name: newName })
+    }).then(res => {
+      if (res.ok) return res.json();
+      return res.json().then(err => { throw new Error(err.error || 'unknown'); });
+    }).then(data => {
+      r.filename = data.new_filename;
+      r.title = data.new_filename.replace('.md', '');
+      const h2 = document.createElement('h2');
+      h2.id = 'previewTitle';
+      h2.textContent = r.title;
+      input.parentNode.replaceChild(h2, input);
+      showToast('已重命名');
+      loadHistory();
+    }).catch(e => {
+      showToast('重命名失败: ' + (e.message || 'unknown'));
+      const h2 = document.createElement('h2');
+      h2.id = 'previewTitle';
+      h2.textContent = oldName;
+      input.parentNode.replaceChild(h2, input);
+    });
+  });
+}
+
 function copyNotes() {
   const r = currentResults[currentIndex];
   if (!r || r.error) return;
